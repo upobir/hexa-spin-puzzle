@@ -10,8 +10,24 @@
   <div class="container">
     <h1>Triangle Puzzle</h1>
     <p class="instructions">Click a rotation point (border) to rotate 6 cells counter-clockwise.</p>
+    <div class="controls">
+      <label for="n-select">Size:</label>
+      <select id="n-select">
+        <option value="2">2</option>
+        <option value="4" selected>4</option>
+        <option value="6">6</option>
+        <option value="8">8</option>
+        <option value="10">10</option>
+      </select>
+      <button id="shuffle-btn">Shuffle</button>
+      <button id="reset-btn">Reset</button>
+    </div>
     <div class="canvas-wrapper">
       <canvas id="canvas"></canvas>
+    </div>
+    <div class="history-controls">
+      <button id="undo-btn" disabled>Undo</button>
+      <button id="redo-btn" disabled>Redo</button>
     </div>
   </div>
   <script src="game.js"></script>

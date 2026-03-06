@@ -1,21 +1,29 @@
 (function () {
   'use strict';
 
-  const N = 4;
-  const ROWS = N;
-  const COLS = 2 * N - 1;
-  const TOTAL_CELLS = ROWS * COLS;
-
   const CANVAS_SIZE = 600;
   const PADDING = 40;
   const SQRT3 = Math.sqrt(3);
-  const AVAIL = CANVAS_SIZE - 2 * PADDING;
-  const H = Math.min(AVAIL / N, (AVAIL * SQRT3) / (2 * N - 1));
-  const S = 2 * H / SQRT3;
+
+  let N = 4;
+  let ROWS, COLS, TOTAL_CELLS, H, S;
+
+  function updateGeometry() {
+    ROWS = N;
+    COLS = 2 * N - 1;
+    TOTAL_CELLS = ROWS * COLS;
+    const AVAIL = CANVAS_SIZE - 2 * PADDING;
+    H = Math.min(AVAIL / N, (AVAIL * SQRT3) / (2 * N - 1));
+    S = 2 * H / SQRT3;
+  }
+
+  const MAX_HISTORY = 50;
 
   let board = [];
   let rotationPoints = []; // { row, col, x, y } - corners where 6 triangles meet
   let activeRotation = null; // { row, col, startTime, duration }
+  let history = [];
+  let historyIndex = -1;
 
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
@@ -129,6 +137,7 @@
     } else {
       applyRotation(activeRotation.row, activeRotation.col);
       activeRotation = null;
+      pushHistory();
       draw();
     }
   }
@@ -154,6 +163,88 @@
       board.push({ id: i + 1, orientation: 0 });
     }
     buildRotationPoints();
+  }
+
+  function copyBoard() {
+    return board.map(cell => ({ id: cell.id, orientation: cell.orientation }));
+  }
+
+  function initHistory() {
+    history = [copyBoard()];
+    historyIndex = 0;
+    updateUndoRedoButtons();
+  }
+
+  function pushHistory() {
+    history = history.slice(0, historyIndex + 1);
+    history.push(copyBoard());
+    if (history.length > MAX_HISTORY) {
+      history.shift();
+      historyIndex = MAX_HISTORY - 1;
+    } else {
+      historyIndex = history.length - 1;
+    }
+    updateUndoRedoButtons();
+  }
+
+  function restoreFromHistory(index) {
+    const state = history[index];
+    for (let i = 0; i < board.length; i++) {
+      board[i].id = state[i].id;
+      board[i].orientation = state[i].orientation;
+    }
+  }
+
+  function undo() {
+    if (activeRotation || historyIndex <= 0) return;
+    historyIndex--;
+    restoreFromHistory(historyIndex);
+    draw();
+    updateUndoRedoButtons();
+  }
+
+  function redo() {
+    if (activeRotation || historyIndex >= history.length - 1) return;
+    historyIndex++;
+    restoreFromHistory(historyIndex);
+    draw();
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    if (undoBtn) undoBtn.disabled = historyIndex <= 0;
+    if (redoBtn) redoBtn.disabled = historyIndex >= history.length - 1;
+  }
+
+  function setN(newN) {
+    if (activeRotation) return;
+    N = newN;
+    updateGeometry();
+    buildBoard();
+    initHistory();
+    draw();
+  }
+
+  function shuffle() {
+    if (activeRotation) return;
+    const pts = getRotationPoints().filter(p => getSixCells(p.row, p.col).length === 6);
+    if (pts.length === 0) return;
+    const count = 100 * N * N;
+    for (let i = 0; i < count; i++) {
+      const pt = pts[Math.floor(Math.random() * pts.length)];
+      applyRotation(pt.row, pt.col);
+    }
+    pushHistory();
+    draw();
+  }
+
+  function reset() {
+    if (activeRotation) return;
+    buildBoard();
+    initHistory();
+    draw();
   }
 
   function rotatePoint(px, py, cx, cy, angleRad) {
@@ -189,7 +280,15 @@
           corners = corners.map(p => rotatePoint(p.x, p.y, rotCenter.x, rotCenter.y, animAngle));
         }
 
-        ctx.fillStyle = '#e8e8e8';
+        const correctPosition = cell.id === idx + 1;
+        const correctOrientation = cell.orientation === 0;
+        if (correctPosition && correctOrientation) {
+          ctx.fillStyle = '#f0e4e4';
+        } else if (correctPosition) {
+          ctx.fillStyle = '#e0e4f0';
+        } else {
+          ctx.fillStyle = '#e8e8e8';
+        }
         ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -301,13 +400,25 @@
   }
 
   function init() {
+    updateGeometry();
     canvas.width = CANVAS_SIZE;
     canvas.height = CANVAS_SIZE;
     buildBoard();
+    initHistory();
     draw();
     canvas.addEventListener('click', handleClick);
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseleave', handleMouseLeave);
+
+    const nSelect = document.getElementById('n-select');
+    const shuffleBtn = document.getElementById('shuffle-btn');
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    nSelect.addEventListener('change', () => setN(parseInt(nSelect.value, 10)));
+    shuffleBtn.addEventListener('click', shuffle);
+    document.getElementById('reset-btn').addEventListener('click', reset);
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
   }
 
   init();
